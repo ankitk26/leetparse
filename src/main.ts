@@ -4,10 +4,13 @@ if (!app) {
   throw new Error("App root not found.");
 }
 
+document.body.style.overflow = 'hidden';
+document.body.style.height = '100vh';
+
 app.innerHTML = `
-  <main style="width: 100%;">
-    <h1>LeetCode Scraper</h1>
-    <form id="generate-form" style="width: 100%;">
+  <main style="width: 100%; overflow: hidden;">
+    <h1>leetparse</h1>
+    <form id="generate-form" style="width: 100%; display: flex; flex-direction: column; gap: 8px;">
       <input
         id="leetcode-url"
         name="url"

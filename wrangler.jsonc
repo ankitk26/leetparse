@@ -1,10 +1,10 @@
 {
-  "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "leetcode-question-scrapper",
-  "compatibility_date": "2026-04-03",
-  "main": "./worker/index.ts",
-  "assets": {
-    "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*"]
-  }
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "leetparse",
+	"compatibility_date": "2026-04-03",
+	"main": "./worker/index.ts",
+	"assets": {
+		"not_found_handling": "single-page-application",
+		"run_worker_first": ["/api/*"],
+	},
 }
