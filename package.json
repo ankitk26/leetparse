@@ -7,7 +7,7 @@
 		"dev": "vite",
 		"build": "tsc && vite build",
 		"preview": "vite preview",
-		"deploy": "vite build && wrangler deploy"
+		"deploy": "wrangler deploy"
 	},
 	"dependencies": {
 		"hono": "^4.10.1"
