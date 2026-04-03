@@ -1,0 +1,21 @@
+{
+  "name": "leetcode-question-scrapper-web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "hono": "^4.10.1"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.13.6",
+    "@cloudflare/workers-types": "^4.20260402.0",
+    "typescript": "~5.9.3",
+    "vite": "^8.0.1",
+    "wrangler": "^4.40.1"
+  }
+}
