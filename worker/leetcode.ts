@@ -281,16 +281,50 @@ function isVectorType(cppType: string): boolean {
   return cppType.startsWith("vector<");
 }
 
+function vectorNestingDepth(cppType: string): number {
+  let depth = 0;
+  let type = cppType.trim();
+  while (type.startsWith("vector<") && type.endsWith(">")) {
+    depth++;
+    type = type.slice(7, -1).trim();
+  }
+  return depth;
+}
+
 function buildResultPrint(returnType: string): string {
   if (returnType === "void") {
     return "";
   }
 
-  if (isVectorType(returnType)) {
-    return '\tfor (auto k : result) {\n\t\tcout << k << " ";\n\t}\n\tcout << "\\n";';
+  const depth = vectorNestingDepth(returnType);
+
+  if (depth === 0) {
+    return '\tcout << result << "\\n";';
   }
 
-  return '\tcout << result << "\\n";';
+  let code = "";
+  let indent = "\t";
+
+  for (let i = 0; i < depth; i++) {
+    const container = i === 0 ? "result" : `r${i}`;
+    const elem = i === depth - 1 ? "k" : `r${i + 1}`;
+    const ref = i < depth - 1 ? "&" : "";
+    code += `${indent}for (auto${ref} ${elem} : ${container}) {\n`;
+    indent += "\t";
+  }
+
+  code += `${indent}cout << k << " ";\n`;
+
+  for (let i = depth - 1; i >= 0; i--) {
+    indent = indent.slice(0, -1);
+    code += `${indent}}\n`;
+    if (i > 0) {
+      code += `${indent}cout << "\\n";\n`;
+    }
+  }
+
+  code += `${indent}cout << "\\n";`;
+  return code;
 }
 
 function buildCppFile(question: Question): string {
