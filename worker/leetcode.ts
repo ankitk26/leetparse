@@ -246,35 +246,58 @@ function getCppSnippet(codeSnippets: CodeSnippet[]): string {
   throw new Error("C++ code snippet not found.");
 }
 
-function getSampleLines(question: Question): string[] {
+function getExampleBlocks(question: Question, paramCount: number): string[][] {
+  const blocks: string[][] = [];
+
+  const examples = question.exampleTestcases?.trim();
+  if (examples) {
+    // LeetCode sometimes separates examples with blank lines, sometimes not.
+    const rawBlocks = examples
+      .split("\n\n")
+      .map((block) => block.trim())
+      .filter(Boolean);
+
+    for (const block of rawBlocks) {
+      const lines = block
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean);
+      if (lines.length > 0) {
+        blocks.push(lines);
+      }
+    }
+
+    // If we only got one block but have more lines than params,
+    // the examples are likely stacked without blank lines.
+    if (blocks.length === 1 && paramCount > 0) {
+      const allLines = blocks[0];
+      if (allLines.length > paramCount && allLines.length % paramCount === 0) {
+        const grouped: string[][] = [];
+        for (let i = 0; i < allLines.length; i += paramCount) {
+          grouped.push(allLines.slice(i, i + paramCount));
+        }
+        return grouped;
+      }
+    }
+
+    if (blocks.length > 0) {
+      return blocks;
+    }
+  }
+
+  // Fallback to sampleTestCase
   const sample = question.sampleTestCase?.trim();
   if (sample) {
     const lines = sample
       .split("\n")
       .map((line) => line.trim())
       .filter(Boolean);
-
     if (lines.length > 0) {
-      return lines;
+      blocks.push(lines);
     }
   }
 
-  const examples = question.exampleTestcases?.trim();
-  if (!examples) {
-    return [];
-  }
-
-  const firstBlock = examples
-    .split("\n\n")
-    .map((block) => block.trim())
-    .find(Boolean);
-
-  return firstBlock
-    ? firstBlock
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(Boolean)
-    : [];
+  return blocks;
 }
 
 function isVectorType(cppType: string): boolean {
@@ -291,7 +314,7 @@ function vectorNestingDepth(cppType: string): number {
   return depth;
 }
 
-function buildResultPrint(returnType: string): string {
+function buildResultPrint(returnType: string, indent: string = "\t"): string {
   if (returnType === "void") {
     return "";
   }
@@ -299,31 +322,31 @@ function buildResultPrint(returnType: string): string {
   const depth = vectorNestingDepth(returnType);
 
   if (depth === 0) {
-    return '\tcout << result << "\\n";';
+    return `${indent}cout << result << "\\n";`;
   }
 
   let code = "";
-  let indent = "\t";
+  let currentIndent = indent;
 
   for (let i = 0; i < depth; i++) {
     const container = i === 0 ? "result" : `r${i}`;
     const elem = i === depth - 1 ? "k" : `r${i + 1}`;
     const ref = i < depth - 1 ? "&" : "";
-    code += `${indent}for (auto${ref} ${elem} : ${container}) {\n`;
-    indent += "\t";
+    code += `${currentIndent}for (auto${ref} ${elem} : ${container}) {\n`;
+    currentIndent += "\t";
   }
 
-  code += `${indent}cout << k << " ";\n`;
+  code += `${currentIndent}cout << k << " ";\n`;
 
   for (let i = depth - 1; i >= 0; i--) {
-    indent = indent.slice(0, -1);
-    code += `${indent}}\n`;
+    currentIndent = currentIndent.slice(0, -1);
+    code += `${currentIndent}}\n`;
     if (i > 0) {
-      code += `${indent}cout << "\\n";\n`;
+      code += `${currentIndent}cout << "\\n";\n`;
     }
   }
 
-  code += `${indent}cout << "\\n";`;
+  code += `${currentIndent}cout << "\\n";`;
   return code;
 }
 
@@ -333,27 +356,63 @@ function buildCppFile(question: Question): string {
   const funcName = meta.name;
   const returnType = lcTypeToCpp(meta.return.type);
   const cppSnippet = getCppSnippet(question.codeSnippets);
-  const sampleLines = getSampleLines(question);
+  const exampleBlocks = getExampleBlocks(question, params.length);
 
-  const declarations: string[] = [];
-  const argNames: string[] = [];
+  const caseBodies: string[] = [];
 
-  params.forEach((param, index) => {
-    const cppType = lcTypeToCpp(param.type);
-    const value =
-      index < sampleLines.length
-        ? toCppLiteral(sampleLines[index], param.type)
-        : defaultValueForType(param.type);
+  if (exampleBlocks.length === 0) {
+    const declarations: string[] = [];
+    const argNames: string[] = [];
 
-    declarations.push(`\t${cppType} ${param.name} = ${value};`);
-    argNames.push(param.name);
-  });
+    params.forEach((param) => {
+      const cppType = lcTypeToCpp(param.type);
+      const value = defaultValueForType(param.type);
+      declarations.push(`\t\t${cppType} ${param.name} = ${value};`);
+      argNames.push(param.name);
+    });
 
-  const args = argNames.join(", ");
-  const invoke =
-    returnType === "void"
-      ? `\tsol->${funcName}(${args});`
-      : `\t${returnType} result = sol->${funcName}(${args});`;
+    const args = argNames.join(", ");
+    const invoke =
+      returnType === "void"
+        ? `\t\tsol->${funcName}(${args});`
+        : `\t\t${returnType} result = sol->${funcName}(${args});`;
+
+    caseBodies.push(`\t{ // Case #1
+${declarations.join("\n")}
+${invoke}
+\t\tcout << "Case #1" << endl;
+${buildResultPrint(returnType, "\t\t")}
+\t}`);
+  } else {
+    exampleBlocks.forEach((block, index) => {
+      const declarations: string[] = [];
+      const argNames: string[] = [];
+
+      params.forEach((param, paramIndex) => {
+        const cppType = lcTypeToCpp(param.type);
+        const value =
+          paramIndex < block.length
+            ? toCppLiteral(block[paramIndex], param.type)
+            : defaultValueForType(param.type);
+
+        declarations.push(`\t\t${cppType} ${param.name} = ${value};`);
+        argNames.push(param.name);
+      });
+
+      const args = argNames.join(", ");
+      const invoke =
+        returnType === "void"
+          ? `\t\tsol->${funcName}(${args});`
+          : `\t\t${returnType} result = sol->${funcName}(${args});`;
+
+      caseBodies.push(`\t{ // Case #${index + 1}
+${declarations.join("\n")}
+${invoke}
+\t\tcout << "Case #${index + 1}" << endl;
+${buildResultPrint(returnType, "\t\t")}
+\t}`);
+    });
+  }
 
   return `#include <bits/stdc++.h>
 using namespace std;
@@ -363,12 +422,9 @@ using ull = unsigned long long int;
 ${cppSnippet}
 
 int main() {
-${declarations.join("\n")}
-
 \tSolution *sol = new Solution();
-${invoke}
 
-${buildResultPrint(returnType)}
+${caseBodies.join("\n\n")}
 
 \tdelete sol;
 \treturn 0;
