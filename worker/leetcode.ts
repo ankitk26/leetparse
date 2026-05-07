@@ -182,6 +182,14 @@ function defaultValueForType(typeName: string): string {
   return "0";
 }
 
+function getInnermostType(cppType: string): string {
+  let type = cppType.trim();
+  while (type.startsWith("vector<") && type.endsWith(">")) {
+    type = type.slice(7, -1).trim();
+  }
+  return type;
+}
+
 function toCppLiteral(rawValue: string, typeName: string): string {
   let value = rawValue.trim();
 
@@ -192,7 +200,11 @@ function toCppLiteral(rawValue: string, typeName: string): string {
   const cppType = lcTypeToCpp(typeName);
 
   if (cppType.startsWith("vector<")) {
-    return value.replace(/\[/g, "{").replace(/\]/g, "}");
+    let result = value.replace(/\[/g, "{").replace(/\]/g, "}");
+    if (getInnermostType(cppType) === "char") {
+      result = result.replace(/"([^"]{1})"/g, "'$1'");
+    }
+    return result;
   }
 
   if (cppType === "string") {
