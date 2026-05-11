@@ -1,14 +1,13 @@
+import "./style.css";
+
 const app = document.querySelector<HTMLDivElement>("#app");
 
 if (!app) {
   throw new Error("App root not found.");
 }
 
-document.body.style.overflow = 'hidden';
-document.body.style.height = '100vh';
-
 app.innerHTML = `
-  <main style="width: 100%; overflow: hidden;">
+  <main style="width: 100%;">
     <h1>leetparse</h1>
     <form id="generate-form" style="width: 100%; display: flex; flex-direction: column; gap: 8px;">
       <input
@@ -24,7 +23,6 @@ app.innerHTML = `
     <p id="status" style="width: 100%;"></p>
     <textarea
       id="output"
-      rows="24"
       placeholder="Generated C++ will appear here"
       style="width: 100%; box-sizing: border-box;"
     ></textarea>
