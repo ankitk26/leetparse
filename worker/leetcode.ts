@@ -7,6 +7,7 @@ query questionData($titleSlug: String!) {
     titleSlug
     sampleTestCase
     exampleTestcases
+    content
     metaData
     codeSnippets {
       lang
@@ -26,6 +27,7 @@ type CodeSnippet = {
 type Question = {
   sampleTestCase?: string | null;
   exampleTestcases?: string | null;
+  content?: string | null;
   metaData: string;
   codeSnippets: CodeSnippet[];
 };
@@ -247,6 +249,14 @@ function getCppSnippet(codeSnippets: CodeSnippet[]): string {
 }
 
 function getExampleBlocks(question: Question, paramCount: number): string[][] {
+  // Prefer the examples shown in the problem description because LeetCode's
+  // `exampleTestcases` / `sampleTestCase` fields sometimes contain different
+  // (random) test data.
+  const fromContent = getExampleBlocksFromContent(question.content ?? "", paramCount);
+  if (fromContent.length > 0) {
+    return fromContent;
+  }
+
   const blocks: string[][] = [];
 
   const examples = question.exampleTestcases?.trim();
@@ -294,6 +304,77 @@ function getExampleBlocks(question: Question, paramCount: number): string[][] {
       .filter(Boolean);
     if (lines.length > 0) {
       blocks.push(lines);
+    }
+  }
+
+  return blocks;
+}
+
+function stripHtmlTags(html: string): string {
+  return html.replace(/<[^>]+>/g, "");
+}
+
+function parseExampleInput(inputText: string): Record<string, string> {
+  const assignments: Record<string, string> = {};
+
+  // Drop everything before "Input:" and everything from "Output:" onward.
+  const inputPart = inputText
+    .replace(/^[\s\S]*?Input:\s*/s, "")
+    .split(/Output:/s)[0]
+    .trim();
+
+  // Split on each new variable assignment. Arrays/strings may contain commas,
+  // so we split on the lookahead for `word =` rather than by commas.
+  const parts = inputPart.split(/(?=\b\w+\s*=)/s).filter(Boolean);
+
+  for (const part of parts) {
+    const match = part.match(/^(\w+)\s*=\s*([\s\S]*?)$/);
+    if (!match) continue;
+
+    let value = match[2].trim();
+    // Strip a trailing comma that separates multiple assignments on one line.
+    value = value.replace(/,$/, "").trim();
+
+    assignments[match[1]] = value;
+  }
+
+  return assignments;
+}
+
+function getExampleBlocksFromContent(content: string, paramCount: number): string[][] {
+  if (!content.includes("<pre>")) {
+    return [];
+  }
+
+  const blocks: string[][] = [];
+  const preRegex = /<pre>([\s\S]*?)<\/pre>/g;
+
+  let match: RegExpExecArray | null;
+  while ((match = preRegex.exec(content)) !== null) {
+    const text = stripHtmlTags(match[1]);
+    if (!text.includes("Input:")) {
+      continue;
+    }
+
+    const assignments = parseExampleInput(text);
+
+    if (paramCount === 0) {
+      blocks.push([]);
+      continue;
+    }
+
+    const blockValues: string[] = [];
+    for (const param of Array(paramCount).keys()) {
+      // We don't have param names here, but the values are inserted in the
+      // order they appear in the Input section.
+      const value = Object.values(assignments)[param];
+      if (value !== undefined) {
+        blockValues.push(value);
+      }
+    }
+
+    if (blockValues.length > 0) {
+      blocks.push(blockValues);
     }
   }
 
@@ -379,8 +460,8 @@ function buildCppFile(question: Question): string {
 
     caseBodies.push(`\t{ // Case #1
 ${declarations.join("\n")}
-${invoke}
 \t\tcout << "Case #1" << endl;
+${invoke}
 ${buildResultPrint(returnType, "\t\t")}
 \t}`);
   } else {
@@ -407,8 +488,8 @@ ${buildResultPrint(returnType, "\t\t")}
 
       caseBodies.push(`\t{ // Case #${index + 1}
 ${declarations.join("\n")}
-${invoke}
 \t\tcout << "Case #${index + 1}" << endl;
+${invoke}
 ${buildResultPrint(returnType, "\t\t")}
 \t}`);
     });
